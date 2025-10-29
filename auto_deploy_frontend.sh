@@ -7,13 +7,22 @@ echo "时间: $(date)"
 # 检查Git更新
 if git fetch origin 2>/dev/null; then
     LOCAL=$(git rev-parse HEAD)
-    REMOTE=$(git rev-parse origin/main 2>/dev/null)
     
-    if [ $? -eq 0 ] && [ "$LOCAL" != "$REMOTE" ]; then
+    # 尝试获取main分支，如果失败则尝试master分支
+    if REMOTE=$(git rev-parse origin/main 2>/dev/null); then
+        BRANCH="main"
+    elif REMOTE=$(git rev-parse origin/master 2>/dev/null); then
+        BRANCH="master"
+    else
+        echo "❌ 无法读取远程分支"
+        exit 1
+    fi
+    
+    if [ "$LOCAL" != "$REMOTE" ]; then
         echo "🔄 发现新版本: ${LOCAL:0:8} -> ${REMOTE:0:8}"
         
         # 拉取更新
-        git pull origin main
+        git pull origin $BRANCH
         
         echo "安装依赖..."
         npm install
