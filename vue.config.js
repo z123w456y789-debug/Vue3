@@ -10,6 +10,7 @@ module.exports = defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:2222', // 你的后端端口
+        // 你的后端端口
         changeOrigin: true,
         secure: false,
         ws: true,
