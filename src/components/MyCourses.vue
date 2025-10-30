@@ -1,71 +1,213 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="app-container">
+  <div class="courses-page">
+    <!-- 简洁页面头部 -->
+    <div class="page-header">
+      <div class="header-content">
+        <div class="title-section">
+          <h1 class="page-title">我的课程</h1>
+        </div>
+        <el-button 
+          type="primary" 
+          size="large" 
+          class="add-course-btn"
+          @click="showAddCourseModal = true"
+          :icon="Plus"
+        >
+          添加课程
+        </el-button>
+      </div>
+    </div>
 
-    <!-- 主内容区 -->
-    <main class="main-content">
-      <div class="page-header">
-        <h2>我的课程</h2>
-        <button class="add-course-btn" @click="showAddCourseModal = true">添加课程</button>
+    <!-- 主要内容区域 -->
+    <div class="main-content-area">
+      <!-- 搜索和操作栏 -->
+      <div class="action-bar">
+        <div class="search-container">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索课程名称、教师"
+            :prefix-icon="Search"
+            class="search-input"
+            clearable
+          />
+        </div>
       </div>
 
-      <!-- 加载状态 -->
-      <div v-if="loading" class="loading-container">
-        <p>加载中...</p>
-      </div>
+      <!-- 课程内容 -->
+      <div class="courses-content">
+        <!-- 加载状态 -->
+        <div v-if="loading" class="loading-state">
+          <div class="skeleton-grid">
+            <div v-for="i in 6" :key="i" class="course-skeleton">
+              <div class="skeleton-cover"></div>
+              <div class="skeleton-info">
+                <div class="skeleton-title"></div>
+                <div class="skeleton-text"></div>
+                <div class="skeleton-text short"></div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <!-- 课程列表 -->
-      <div v-else class="course-list">
-        <div class="course-card" v-for="course in courses" :key="course.id">
-          <img :src="courseCover" alt="课程封面" class="course-cover" />
-          <h3 class="course-name">{{ course.name }}</h3>
-          <p class="teacher-name">{{ course.teacherName || '教师信息待完善' }}</p>
-          <p class="course-code">课程代码: {{ course.courseCode }}</p>
+        <!-- 课程网格 -->
+        <div v-else class="courses-grid">
+          <div 
+            v-for="course in filteredCourses" 
+            :key="course.id"
+            class="course-card"
+          >
+            <div class="course-cover">
+              <img :src="courseCover" alt="课程封面" />
+            </div>
+            
+            <div class="course-info">
+              <h4 class="course-name">{{ course.name }}</h4>
+              
+              <div class="course-details">
+                <div class="detail-item">
+                  <el-icon><User /></el-icon>
+                  <span>{{ course.teacherName || '教师信息待完善' }}</span>
+                </div>
+                <div class="detail-item">
+                  <el-icon><Document /></el-icon>
+                  <span>{{ course.courseCode }}</span>
+                </div>
+              </div>
+
+              <!-- 如果后端提供了进度数据，显示进度条 -->
+              <div class="course-progress" v-if="course.progress !== undefined">
+                <div class="progress-info">
+                  <span>学习进度</span>
+                  <span class="progress-percent">{{ course.progress || 0 }}%</span>
+                </div>
+                <div class="progress-bar">
+                  <div 
+                    class="progress-fill" 
+                    :style="{ width: (course.progress || 0) + '%' }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 添加课程卡片 -->
+          <div class="add-course-card" @click="showAddCourseModal = true">
+            <div class="add-content">
+              <el-icon size="32"><Plus /></el-icon>
+              <p>添加课程</p>
+            </div>
+          </div>
         </div>
 
         <!-- 空状态 -->
-        <div v-if="courses.length === 0" class="empty-state">
-          <p>暂无课程，请添加课程</p>
-        </div>
-      </div>
-    </main>
-
-    <!-- 添加课程弹窗 -->
-    <div class="modal-overlay" v-if="showAddCourseModal">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>添加课程</h3>
-          <button class="close-btn" @click="showAddCourseModal = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p>输入课程代码</p>
-          <input type="text" v-model="courseCode" placeholder="请输入课程代码" class="course-id-input" />
-        </div>
-        <div class="modal-footer">
-          <button class="cancel-btn" @click="showAddCourseModal = false">取消</button>
-          <button class="confirm-btn" @click="handleAddCourse" :disabled="addLoading">
-            {{ addLoading ? '添加中...' : '确认添加' }}
-          </button>
+        <div v-if="!loading && courses.length === 0" class="empty-state">
+          <div class="empty-content">
+            <el-icon size="64" color="#cbd5e1"><Notebook /></el-icon>
+            <h3>暂无课程</h3>
+            <p>您还没有添加任何课程</p>
+            <el-button type="primary" @click="showAddCourseModal = true">
+              添加第一个课程
+            </el-button>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- 添加课程弹窗 -->
+    <el-dialog
+      v-model="showAddCourseModal"
+      title="添加课程"
+      width="400px"
+      :close-on-click-modal="false"
+      align-center
+    >
+      <div class="dialog-content">
+        <el-form :model="addForm" :rules="addRules" ref="addFormRef">
+          <el-form-item label="课程代码" prop="courseCode">
+            <el-input
+              v-model="addForm.courseCode"
+              placeholder="请输入课程代码"
+              :prefix-icon="Key"
+              size="large"
+              clearable
+            />
+          </el-form-item>
+        </el-form>
+        
+        <div class="dialog-tips">
+          <el-alert
+            title="提示"
+            type="info"
+            description="请向授课教师获取课程代码"
+            :closable="false"
+            show-icon
+          />
+        </div>
+      </div>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showAddCourseModal = false" :disabled="addLoading">
+            取消
+          </el-button>
+          <el-button 
+            type="primary" 
+            @click="handleAddCourse" 
+            :loading="addLoading"
+          >
+            {{ addLoading ? '添加中...' : '确认添加' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { 
+  Plus, 
+  Search, 
+  User, 
+  Document, 
+  Key,
+  Notebook
+} from '@element-plus/icons-vue'
 import courseCover from '@/assets/at.png'
-// 导入http实例
 import { http } from '../common/request'
 
 // 课程数据
 const courses = ref([])
 const loading = ref(false)
 const addLoading = ref(false)
+const searchKeyword = ref('')
 
 // 弹窗相关状态
 const showAddCourseModal = ref(false)
-const courseCode = ref('')
+const addForm = ref({
+  courseCode: ''
+})
+const addFormRef = ref(null)
+
+// 表单验证规则
+const addRules = {
+  courseCode: [
+    { required: true, message: '请输入课程代码', trigger: 'blur' },
+    { min: 3, message: '课程代码长度至少3个字符', trigger: 'blur' }
+  ]
+}
+
+// 计算属性
+const filteredCourses = computed(() => {
+  if (!searchKeyword.value) return courses.value
+  return courses.value.filter(course => 
+    course.name.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+    course.courseCode.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+    (course.teacherName && course.teacherName.toLowerCase().includes(searchKeyword.value.toLowerCase()))
+  )
+})
 
 // 获取学生课程列表
 const fetchCourses = async () => {
@@ -75,6 +217,7 @@ const fetchCourses = async () => {
     console.log('课程列表响应:', response)
 
     if (response.success) {
+      // 直接使用后端返回的数据
       courses.value = response.data || []
     } else {
       ElMessage.error(response.message || '获取课程列表失败')
@@ -89,322 +232,338 @@ const fetchCourses = async () => {
 
 // 处理添加课程
 const handleAddCourse = async () => {
-  if (!courseCode.value.trim()) {
-    ElMessage.warning('请输入课程代码')
-    return
-  }
+  if (!addFormRef.value) return
 
-  addLoading.value = true
+  await addFormRef.value.validate(async (valid) => {
+    if (!valid) return
 
-  try {
-    console.log('发送添加课程请求:', courseCode.value.trim())
+    addLoading.value = true
 
-    const response = await http.post('/courses-add', {
-      courseCode: courseCode.value.trim()
-    })
+    try {
+      const response = await http.post('/courses-add', {
+        courseCode: addForm.value.courseCode.trim()
+      })
 
-    console.log('添加课程响应:', response)
-
-    if (response.success) {
-      ElMessage.success('课程添加成功')
-      showAddCourseModal.value = false
-      courseCode.value = ''
-      // 重新获取课程列表
-      await fetchCourses()
-    } else {
-      ElMessage.error(response.message || '添加课程失败')
+      if (response.success) {
+        ElMessage.success('课程添加成功')
+        showAddCourseModal.value = false
+        addForm.value.courseCode = ''
+        await fetchCourses()
+      } else {
+        ElMessage.error(response.message || '添加课程失败')
+      }
+    } catch (error) {
+      console.error('添加课程失败:', error)
+      ElMessage.error(error.message || '添加课程失败，请稍后重试')
+    } finally {
+      addLoading.value = false
     }
-  } catch (error) {
-    console.error('添加课程失败:', error)
-    ElMessage.error(error.message || '添加课程失败，请稍后重试')
-  } finally {
-    addLoading.value = false
-  }
+  })
 }
 
-// 组件挂载时获取课程列表
 onMounted(() => {
   fetchCourses()
 })
 </script>
 
 <style scoped>
-/* 原有样式保持不变 */
-.app-container {
-  display: flex;
+.courses-page {
   min-height: 100vh;
+  background: #ffffff;
 }
 
-.sidebar {
-  width: 220px;
-  background: #fff;
-  border-right: 1px solid #eee;
-  display: flex;
-  flex-direction: column;
-}
-
-.logo {
-  padding: 20px;
-  font-size: 20px;
-  font-weight: bold;
-}
-
-.nav-menu {
-  flex: 1;
-  padding-top: 20px;
-}
-
-.menu-item {
-  display: block;
-  padding: 12px 20px;
-  text-decoration: none;
-  color: #333;
-  transition: background 0.2s;
-}
-
-.menu-item.active {
-  background: #f0f0f0;
-  color: #007bff;
-}
-
-.user-info {
-  padding: 20px;
-  border-top: 1px solid #eee;
-}
-
-.avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  vertical-align: middle;
-}
-
-.user-details {
-  display: inline-block;
-  vertical-align: middle;
-  margin-left: 10px;
-}
-
-.username {
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.aux-info {
-  font-size: 12px;
-  color: #999;
-}
-
-.logout-btn {
-  margin-top: 10px;
-  background: transparent;
-  border: none;
-  color: #999;
-  cursor: pointer;
-}
-
-.main-content {
-  flex: 1;
-  padding: 20px;
-}
-
+/* 简洁页面头部 */
 .page-header {
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 24px 0;
+}
+
+.header-content {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 32px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+}
+
+.title-section .page-title {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: #1e293b;
+}
+
+.title-section .page-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
 }
 
 .add-course-btn {
-  background: #007bff;
-  color: #fff;
+  background: #3b82f6;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.course-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-
-.course-card {
-  width: calc(25% - 15px);
-  border: 1px solid #eee;
   border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s, box-shadow 0.2s;
+  padding: 0 20px;
+  height: 40px;
 }
 
-.course-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.add-course-btn:hover {
+  background: #2563eb;
 }
 
-.course-cover {
+/* 主要内容区域 */
+.main-content-area {
+  padding: 24px 32px;
+}
+
+/* 操作栏 */
+.action-bar {
+  margin-bottom: 24px;
+}
+
+.search-container {
+  max-width: 400px;
+}
+
+.search-input {
   width: 100%;
-  height: 120px;
-  object-fit: cover;
-  background-color: #f5f5f5;
 }
 
-.course-name {
-  padding: 12px 12px 8px;
-  font-size: 16px;
-  margin: 0;
-  font-weight: bold;
-  color: #333;
-}
-
-.teacher-name {
-  padding: 0 12px 8px;
-  font-size: 14px;
-  color: #666;
-  margin: 0;
-}
-
-.course-code {
-  padding: 0 12px 12px;
-  font-size: 12px;
-  color: #999;
-  margin: 0;
-}
-
-/* 弹窗样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: #fff;
+:deep(.search-input .el-input__wrapper) {
   border-radius: 8px;
-  width: 400px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e2e8f0;
 }
 
-.modal-header {
-  padding: 20px;
-  border-bottom: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+:deep(.search-input .el-input__wrapper:hover) {
+  border-color: #3b82f6;
 }
 
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #333;
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #999;
-  line-height: 1;
-}
-
-.close-btn:hover {
-  color: #666;
-}
-
-.modal-body {
-  padding: 20px;
-}
-
-.modal-body p {
-  margin: 0 0 12px 0;
-  color: #333;
-  font-weight: 500;
-}
-
-.course-id-input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-sizing: border-box;
-  font-size: 14px;
-  transition: border-color 0.2s;
-}
-
-.course-id-input:focus {
-  outline: none;
-  border-color: #007bff;
-}
-
-.modal-footer {
-  padding: 20px;
-  border-top: 1px solid #eee;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.cancel-btn {
-  padding: 10px 20px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  color: #666;
-  transition: all 0.2s;
-}
-
-.cancel-btn:hover {
-  background: #f5f5f5;
-  border-color: #ccc;
-}
-
-.confirm-btn {
-  padding: 10px 20px;
-  background: #007bff;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.confirm-btn:hover:not(:disabled) {
-  background: #0056b3;
-}
-
-.confirm-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+/* 课程内容 */
+.courses-content {
+  min-height: 400px;
 }
 
 /* 加载状态 */
-.loading-container {
-  text-align: center;
-  padding: 60px;
-  color: #666;
+.loading-state {
+  padding: 20px 0;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.course-skeleton {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.skeleton-cover {
+  height: 140px;
+  background: #f8fafc;
+}
+
+.skeleton-info {
+  padding: 16px;
+}
+
+.skeleton-title {
+  height: 20px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.skeleton-text {
+  height: 16px;
+  background: #f8fafc;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+/* 课程网格 */
+.courses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+/* 课程卡片 */
+.course-card {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.course-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+  transform: translateY(-2px);
+}
+
+.course-cover {
+  height: 140px;
+  background: linear-gradient(135deg, #1e293b, #334155);
+  overflow: hidden;
+}
+
+.course-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.course-info {
+  padding: 16px;
+}
+
+.course-name {
   font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+}
+
+.course-details {
+  margin-bottom: 16px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.detail-item .el-icon {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.course-progress {
+  margin-top: 12px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.progress-percent {
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.progress-bar {
+  height: 4px;
+  background: #f1f5f9;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* 添加课程卡片 */
+.add-course-card {
+  border: 2px dashed #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-course-card:hover {
+  border-color: #3b82f6;
+  background: #f0f9ff;
+}
+
+.add-content {
+  text-align: center;
+  color: #64748b;
+}
+
+.add-content .el-icon {
+  margin-bottom: 8px;
+}
+
+.add-content p {
+  margin: 0;
+  font-weight: 500;
 }
 
 /* 空状态 */
 .empty-state {
+  padding: 80px 20px;
   text-align: center;
-  padding: 60px;
-  color: #999;
-  width: 100%;
-  font-size: 16px;
-  background: #fafafa;
-  border-radius: 8px;
-  border: 1px dashed #ddd;
+}
+
+.empty-content h3 {
+  color: #374151;
+  margin: 16px 0 8px 0;
+  font-size: 18px;
+}
+
+.empty-content p {
+  color: #6b7280;
+  margin: 0 0 20px 0;
+}
+
+/* 弹窗样式 */
+.dialog-content {
+  padding: 8px 0;
+}
+
+.dialog-tips {
+  margin-top: 16px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .header-content {
+    padding: 0 20px;
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+  
+  .main-content-area {
+    padding: 20px;
+  }
+  
+  .courses-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .action-bar {
+    margin-bottom: 20px;
+  }
 }
 </style>
